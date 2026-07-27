@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CYBER ASCENSION // 2D Platformer Engine</title>
+  <!-- Google Fonts for Retro Cyberpunk / Arcade Aesthetic -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:ital,wght@0,400;0,700;1,700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="game-container">
+    <!-- Full-screen Game Canvas -->
+    <canvas id="gameCanvas"></canvas>
+
+    <!-- CRT & Scanline Visual Overlay -->
+    <div id="scanline-overlay"></div>
+    <div id="vignette-overlay"></div>
+
+    <!-- HUD (Heads-Up Display) Layer -->
+    <header id="hud-bar">
+      <div class="hud-group">
+        <span class="hud-label">LOGGED IN:</span>
+        <span id="hud-level-title" class="hud-val neon-cyan">LEVEL 1: NEON OUTSKIRTS</span>
+      </div>
+      <div class="hud-group">
+        <span class="hud-label">DATA PACKETS:</span>
+        <span id="hud-score" class="hud-val neon-green">00 / 05</span>
+      </div>
+      <div class="hud-group">
+        <span class="hud-label">STATUS:</span>
+        <span id="hud-status" class="hud-val neon-yellow">ONLINE 60 FPS</span>
+      </div>
+      <div class="hud-group">
+        <span class="hud-label">AUDIO:</span>
+        <button id="btn-mute-toggle" class="hud-val neon-cyan" style="background:none; border:1px solid #00ffcc; cursor:pointer; padding:2px 8px; font-family:inherit; color:#00ffcc;">[M] VOL: 80%</button>
+      </div>
+    </header>
+
+    <!-- Controls Hint Panel -->
+    <div id="controls-hint">
+      <div class="hint-title">// OPERATOR CONTROLS //</div>
+      <div class="hint-row"><span>[A/D] or [←/→]</span> MOVE OPERATOR</div>
+      <div class="hint-row"><span>[W], [UP] or [SPACE]</span> JUMP / DOUBLE JUMP</div>
+      <div class="hint-row"><span>[R]</span> EMERGENCY REBOOT (RESET LEVEL)</div>
+      <div class="hint-row"><span>[M]</span> TOGGLE AUDIO MUTE / UNMUTE</div>
+    </div>
+
+    <!-- Audio Initialization / Start Screen Overlay (Required by Browser Autoplay Policies) -->
+    <div id="audio-start-overlay" class="modal-overlay" style="position:absolute; top:0; left:0; width:100%; height:100%; background:rgba(4,7,10,0.92); z-index:9999; display:flex; flex-direction:column; justify-content:center; align-items:center; cursor:pointer;">
+      <div class="modal-box" style="text-align:center; border:2px solid #00ffcc; box-shadow:0 0 30px rgba(0,255,204,0.4); padding:40px; max-width:550px;">
+        <h1 style="color:#00ffcc; font-family:'Courier New', monospace; font-size:28px; letter-spacing:4px; margin-bottom:15px;">// THE ECHO PROTOCOL //</h1>
+        <p style="color:#a0c0d0; font-family:'Courier New', monospace; font-size:16px; margin-bottom:30px; line-height:1.5;">INITIALIZING CYBER-NEURAL AUDIO LINK.<br>WEB AUDIO API ZERO-LATENCY SYNTHESIS READY.</p>
+        <button id="btn-init-audio" class="cyber-btn primary" style="font-size:18px; padding:12px 30px; width:100%;">[ CLICK HERE TO ENGAGE AUDIO & START ]</button>
+      </div>
+    </div>
+
+    <!-- Cinematic Video Cutscene Overlay -->
+    <div id="cutscene-overlay" style="display:none; position:absolute; top:0; left:0; width:100%; height:100%; z-index:8500; background:#000;">
+      <video id="cutscene-video" src="assets/level1_cutscene.mp4" style="width:100%; height:100%; object-fit:cover;" playsinline></video>
+      <div id="cutscene-skip-btn" style="position:absolute; bottom:25px; right:25px; color:#00ffcc; font-family:'Share Tech Mono', monospace; font-size:14px; background:rgba(4,7,10,0.85); padding:10px 20px; border:1px solid #00ffcc; cursor:pointer; z-index:8501; letter-spacing:1px; box-shadow:0 0 15px rgba(0,255,204,0.3);">
+        [ SPACE / CLICK TO SKIP CINEMATIC ]
+      </div>
+    </div>
+
+    <!-- Cyberpunk Dialogue Terminal Overlay -->
+    <div id="dialogue-overlay" class="dialogue-hidden">
+      <div class="dialogue-box">
+        <div class="dialogue-header">
+          <span id="dialogue-speaker" class="neon-cyan">// INCOMING TRANSMISSION // COMMAND OPTIC</span>
+          <span class="dialogue-hint">[ENTER / CLICK TO CONTINUE]</span>
+        </div>
+        <div id="dialogue-text-container">
+          <p id="dialogue-text" class="typewriter-text"></p>
+        </div>
+        <div id="dialogue-choices-container" class="dialogue-choices-hidden">
+          <button id="choice-btn-a" class="cyber-btn choice-btn">[ OPTION A: HACK THE CORE (STEALTH) ]</button>
+          <button id="choice-btn-b" class="cyber-btn choice-btn neon-red">[ OPTION B: REROUTE TO WASTELAND SERVERS ]</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Dynamic Modal Overlay for Level Transitions and Endings -->
+    <div id="ui-modal" class="modal-hidden">
+      <div class="modal-box" id="modal-box-inner">
+        <div class="modal-header">
+          <span id="modal-tag">// SYSTEM PROTOCOL MESSAGE</span>
+          <div class="modal-status-light"></div>
+        </div>
+        <h1 id="modal-title" class="modal-title-text">MISSION COMPLETE</h1>
+        <p id="modal-desc" class="modal-body-text">You have successfully traversed the sector and gathered essential telemetry.</p>
+        
+        <div id="modal-stats" class="modal-stats-grid">
+          <div class="stat-card">
+            <span class="stat-lbl">PACKETS SECURED</span>
+            <span id="stat-packets" class="stat-num">00 / 05</span>
+          </div>
+          <div class="stat-card">
+            <span class="stat-lbl">ENEMIES PURGED</span>
+            <span id="stat-enemies" class="stat-num">00</span>
+          </div>
+          <div class="stat-card">
+            <span class="stat-lbl">TIME ELAPSED</span>
+            <span id="stat-time" class="stat-num">00:00</span>
+          </div>
+        </div>
+
+        <div class="modal-actions">
+          <button id="modal-btn-primary" class="cyber-btn primary">PROCEED TO NEXT SECTOR</button>
+          <button id="modal-btn-secondary" class="cyber-btn secondary">RESTART SECTOR</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Game Engine Code -->
+  <script src="main.js"></script>
+</body>
+</html>
