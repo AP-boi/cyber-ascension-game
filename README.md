@@ -1,8 +1,15 @@
 # ⚡ CYBER ASCENSION // 2D Cyberpunk Action Engine
 
+[![Live Demo](https://img.shields.io/badge/PLAY_ONLINE-neondrift2.netlify.app-ff0055?style=for-the-badge&logo=netlify)](https://neondrift2.netlify.app)
 [![GitHub Repository](https://img.shields.io/badge/GitHub-cyber--ascension--game-00ffcc?style=for-the-badge&logo=github)](https://github.com/AP-boi/cyber-ascension-game)
 
 > **A zero-dependency, high-performance 2D cyberpunk action platformer featuring tight physics, dynamic audio synthesis, full cinematic video cutscenes, and a Detroit-style branching narrative system that physically alters the game world.**
+
+---
+
+## 🌐 Play Online (Live Demo)
+
+🕹️ **Play immediately in your browser**: **[https://neondrift2.netlify.app](https://neondrift2.netlify.app)**
 
 ---
 
@@ -20,7 +27,7 @@
 
 * **🎬 Integrated Full-Screen Cinematic Video Cutscenes**:
   * Custom high-octane video cutscenes play seamlessly at the end of **Level 1**, **Level 2**, and the **Level 3 Grand Finale**.
-  * Supports interactive skip functionality (`[SPACE]` / `[CLICK] / [ESC]`) and graceful autoplay fallback handling.
+  * Supports interactive skip functionality (`[SPACE]` / `[CLICK]` / `[ESC]`) and graceful autoplay fallback handling.
 
 * **🔀 Detroit-Style Narrative & Consequence System**:
   * In-game choices (*Hack the Core* vs *Reroute to Wasteland*) physically alter map architecture, enemy patrol density, environmental visual themes, and story endings.
@@ -93,7 +100,8 @@ cyber-ascension-game/
 
 ---
 
-## 📜 Repository & License
+## 📜 Links & License
 
+- **Live Website**: [https://neondrift2.netlify.app](https://neondrift2.netlify.app)
 - **GitHub Repository**: [https://github.com/AP-boi/cyber-ascension-game](https://github.com/AP-boi/cyber-ascension-game)
 - **License**: Distributed under the MIT License.
