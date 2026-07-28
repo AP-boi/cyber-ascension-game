@@ -13,6 +13,12 @@
    - Rich Parallax Background Rendering & Particle VFX System
    ========================================================================================= */
 
+import { EventBus, AntigravitySystem, GravityZone } from './AntigravitySystem.js';
+
+// Instantiate Antigravity & Decoupled EventBus
+const eventBus = new EventBus();
+const antigravitySystem = new AntigravitySystem(eventBus);
+
 // ─── ENGINE CONSTANTS & VIRTUAL RESOLUTION ───────────────────────────────────────────────
 const VIEW_WIDTH  = 1280;
 const VIEW_HEIGHT = 720;
@@ -29,7 +35,10 @@ const MAX_SPEED   = 6.5;
 const canvas        = document.getElementById('gameCanvas');
 const ctx           = canvas.getContext('2d');
 const hudLevelTitle = document.getElementById('hud-level-title');
+const hudShields    = document.getElementById('hud-shields');
 const hudScore      = document.getElementById('hud-score');
+const hudDash       = document.getElementById('hud-dash');
+const hudGravity    = document.getElementById('hud-gravity');
 const hudStatus     = document.getElementById('hud-status');
 const uiModal       = document.getElementById('ui-modal');
 const modalBox      = document.getElementById('modal-box-inner');
@@ -88,7 +97,7 @@ const assetList = [
   { img: bgLevel2Image, src: 'assets/level2_desert_bg.jpg', fallbackSrc: 'assets/Futuristic_cyberpunk_server_room…_202607280032.jpeg', name: 'Round 2 Desert Server Room Background' },
   { img: bgLevel3Image, src: 'assets/level3_glacier_bg.jpg', name: 'Round 3 Glacier Shift Background' },
   { img: enemySprite, src: 'assets/enemy.png', name: 'Enemy Sprite' },
-  { img: mechSprite, src: 'assets/mech_enemy_sprite.jpg', fallbackSrc: 'assets/Mech_sprite_sheet_pixel_art_202607280018.jpeg', name: 'Mech Enemy Sprite' },
+  { img: mechSprite, src: 'assets/mech_enemy_sprite.png', fallbackSrc: 'assets/Mech_sprite_sheet_pixel_art_202607280018.png', name: 'Mech Enemy Sprite' },
   { img: collectibleSprite, src: 'assets/Glowing_data_packet_crystal_anim__202607272356-removebg-preview.png', fallbackSrc: 'assets/collectible.png', name: 'Collectible Sprite' },
   { img: platformSprite, src: 'assets/platform.png', name: 'Platform Texture' }
 ];
@@ -179,10 +188,14 @@ class InputManager {
       up: false,
       down: false,
       jump: false,
+      dash: false,
+      gravity: false,
       reset: false
     };
     this.justPressed = {
       jump: false,
+      dash: false,
+      gravity: false,
       reset: false
     };
     this.bindEvents();
@@ -194,10 +207,19 @@ class InputManager {
       const code = e.code;
       if (code === 'KeyA' || code === 'ArrowLeft')  this.keys.left = true;
       if (code === 'KeyD' || code === 'ArrowRight') this.keys.right = true;
+      if (code === 'KeyW' || code === 'ArrowUp')    this.keys.up = true;
       if (code === 'KeyS' || code === 'ArrowDown')  this.keys.down = true;
       if (code === 'KeyW' || code === 'ArrowUp' || code === 'Space') {
         this.keys.jump = true;
         this.justPressed.jump = true;
+      }
+      if (code === 'ShiftLeft' || code === 'ShiftRight' || code === 'KeyE') {
+        this.keys.dash = true;
+        this.justPressed.dash = true;
+      }
+      if (code === 'KeyG') {
+        this.keys.gravity = true;
+        this.justPressed.gravity = true;
       }
       if (code === 'KeyR') {
         this.keys.reset = true;
@@ -212,9 +234,16 @@ class InputManager {
       const code = e.code;
       if (code === 'KeyA' || code === 'ArrowLeft')  this.keys.left = false;
       if (code === 'KeyD' || code === 'ArrowRight') this.keys.right = false;
+      if (code === 'KeyW' || code === 'ArrowUp')    this.keys.up = false;
       if (code === 'KeyS' || code === 'ArrowDown')  this.keys.down = false;
       if (code === 'KeyW' || code === 'ArrowUp' || code === 'Space') {
         this.keys.jump = false;
+      }
+      if (code === 'ShiftLeft' || code === 'ShiftRight' || code === 'KeyE') {
+        this.keys.dash = false;
+      }
+      if (code === 'KeyG') {
+        this.keys.gravity = false;
       }
       if (code === 'KeyR') {
         this.keys.reset = false;
@@ -230,6 +259,8 @@ class InputManager {
 
   clearJustPressed() {
     this.justPressed.jump = false;
+    this.justPressed.dash = false;
+    this.justPressed.gravity = false;
     this.justPressed.reset = false;
   }
 }
@@ -358,6 +389,46 @@ class AudioManager {
         gain.connect(this.ctx.destination);
         osc.start(now);
         osc.stop(now + 0.35);
+      } else if (name === 'dash') {
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(600, now);
+        osc.frequency.exponentialRampToValueAtTime(150, now + 0.15);
+        gain.gain.setValueAtTime(0.35 * this.masterVolume * this.sfxVolume, now);
+        gain.gain.linearRampToValueAtTime(0.01, now + 0.15);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.15);
+      } else if (name === 'gravity') {
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(200, now);
+        osc.frequency.exponentialRampToValueAtTime(800, now + 0.25);
+        gain.gain.setValueAtTime(0.4 * this.masterVolume * this.sfxVolume, now);
+        gain.gain.linearRampToValueAtTime(0.01, now + 0.25);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.25);
+      } else if (name === 'shieldHit') {
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(320, now);
+        osc.frequency.linearRampToValueAtTime(100, now + 0.2);
+        gain.gain.setValueAtTime(0.4 * this.masterVolume * this.sfxVolume, now);
+        gain.gain.linearRampToValueAtTime(0.01, now + 0.2);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.2);
+      } else if (name === 'wallJump') {
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(220, now);
+        osc.frequency.exponentialRampToValueAtTime(550, now + 0.12);
+        gain.gain.setValueAtTime(0.25 * this.masterVolume * this.sfxVolume, now);
+        gain.gain.linearRampToValueAtTime(0.01, now + 0.12);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.12);
       }
     }
   }
@@ -813,6 +884,13 @@ class Player {
     this.startY = startY;
     this.width  = 34;
     this.height = 52;
+    this.shields = 3;
+    this.maxShields = 3;
+    this.dashCooldown = 0;
+    this.dashTimer = 0;
+    this.isDashing = false;
+    this.isWallSliding = false;
+    this.wallSlideSide = null;
     this.reset(startX, startY);
   }
 
@@ -823,14 +901,33 @@ class Player {
     this.oldY = this.y;
     this.vx = 0;
     this.vy = 0;
+    this.shields = 3;
+    this.dashCooldown = 0;
+    this.dashTimer = 0;
+    this.isDashing = false;
+    this.isWallSliding = false;
+    this.wallSlideSide = null;
     this.isGrounded = false;
     this.jumpCount = 0;
     this.maxJumps = 2; // Double jump enabled
-    this.state = 'idle'; // 'idle', 'running', 'jumping', 'falling'
+    this.state = 'idle'; // 'idle', 'running', 'jumping', 'falling', 'dashing', 'wallslide'
     this.facing = 'right';
     this.invincibilityTimer = 0;
     this.dead = false;
     this.animTimer = 0;
+  }
+
+  takeDamage(amount = 1, reason = "OPERATOR SHIELD BREACHED") {
+    if (this.dead || this.invincibilityTimer > 0 || this.isDashing) return;
+    this.shields -= amount;
+    this.invincibilityTimer = 60; // 1 second invincibility frames
+    camera.triggerShake(10, 20);
+    vfx.spawnExplosion(this.x + (this.width / 2), this.y + (this.height / 2), 25, '#ff0055', 5, true);
+    if (typeof audioManager !== 'undefined') audioManager.playSfx('shieldHit');
+    updateHudDisplay();
+    if (this.shields <= 0) {
+      this.triggerDeath(reason);
+    }
   }
 
   update(inputMgr, platforms, levelBounds) {
@@ -840,7 +937,44 @@ class Player {
     this.oldY = this.y;
     this.animTimer++;
 
-    // 1. Horizontal Movement & Acceleration
+    // 0. Manual Antigravity Cyber-Implant Toggle [G Key]
+    if (inputMgr.justPressed.gravity) {
+      antigravitySystem.toggleImplant();
+      if (typeof audioManager !== 'undefined') audioManager.playSfx('gravity');
+      vfx.spawnExplosion(this.x + (this.width / 2), this.y + (this.height / 2), 20, '#b400ff', 4, true);
+      updateHudDisplay();
+    }
+
+    const currentScale = antigravitySystem.currentScale;
+    const isZeroG = antigravitySystem.isZeroG;
+    const isReversed = antigravitySystem.isReversed;
+
+    // 1. Dash Mechanics (High-Velocity Thruster Boost)
+    if (this.dashCooldown > 0) this.dashCooldown--;
+    if (this.dashTimer > 0) {
+      this.dashTimer--;
+      if (this.dashTimer <= 0) this.isDashing = false;
+    }
+
+    if (inputMgr.justPressed.dash && this.dashCooldown <= 0 && !this.isDashing) {
+      this.isDashing = true;
+      this.dashTimer = 12;
+      this.dashCooldown = 90; // 1.5s cooldown
+      this.vx = (this.facing === 'right' ? 14 : -14);
+      this.vy = 0;
+      if (typeof audioManager !== 'undefined') audioManager.playSfx('dash');
+      camera.triggerShake(5, 10);
+      vfx.spawnExplosion(this.x + (this.width / 2), this.y + (this.height / 2), 15, '#00ffcc', 4, true);
+      updateHudDisplay();
+    }
+
+    if (this.isDashing) {
+      vfx.spawnTrail(this.x + (this.width / 2), this.y + (this.height / 2), 6, '#00ffcc');
+      this.x += this.vx;
+      return;
+    }
+
+    // 2. Horizontal Movement & Acceleration
     if (inputMgr.keys.left) {
       this.vx -= MOVE_ACCEL;
       this.facing = 'left';
@@ -853,8 +987,16 @@ class Player {
     if (this.vx > MAX_SPEED)  this.vx = MAX_SPEED;
     if (this.vx < -MAX_SPEED) this.vx = -MAX_SPEED;
 
-    // Apply horizontal friction / damping
-    if (this.isGrounded) {
+    // Apply friction / damping
+    if (isZeroG) {
+      // Viscous Zero-G microgravity drag
+      this.vx *= 0.94;
+      this.vy *= 0.94;
+
+      // Vertical micro-thrusters in Zero-G
+      if (inputMgr.keys.up || inputMgr.keys.jump) this.vy -= 0.55;
+      if (inputMgr.keys.down) this.vy += 0.55;
+    } else if (this.isGrounded) {
       if (!inputMgr.keys.left && !inputMgr.keys.right) {
         this.vx *= FRICTION;
         if (Math.abs(this.vx) < 0.1) this.vx = 0;
@@ -863,17 +1005,58 @@ class Player {
       this.vx *= AIR_RESIST;
     }
 
-    // 2. Jumping Logic (Single & Double Jump)
+    // 3. Wall Slide Checks
+    this.isWallSliding = false;
+    this.wallSlideSide = null;
+
+    if (!this.isGrounded && !isZeroG) {
+      if (inputMgr.keys.left || inputMgr.keys.right) {
+        const sideCheckOffset = inputMgr.keys.left ? -2 : 2;
+        const testBox = {
+          x: this.x + sideCheckOffset,
+          y: this.y + 4,
+          width: this.width,
+          height: this.height - 8
+        };
+        for (const plat of platforms) {
+          if (plat.type === 'solid' && (
+            testBox.x < plat.x + plat.width &&
+            testBox.x + testBox.width > plat.x &&
+            testBox.y < plat.y + plat.height &&
+            testBox.y + testBox.height > plat.y
+          )) {
+            this.isWallSliding = true;
+            this.wallSlideSide = inputMgr.keys.left ? 'left' : 'right';
+            if (currentScale > 0 && this.vy > 1.8) this.vy = 1.8;
+            if (currentScale < 0 && this.vy < -1.8) this.vy = -1.8;
+            vfx.spawnTrail(this.wallSlideSide === 'left' ? this.x : this.x + this.width, this.y + 20, 2, '#78a0a8');
+            break;
+          }
+        }
+      }
+    }
+
+    // 4. Jumping Logic (Wall Jump, Inverted Ceiling Jump, Ground Jump, Double Jump)
     if (inputMgr.justPressed.jump) {
-      if (this.isGrounded) {
-        this.vy = JUMP_POWER;
+      if (this.isWallSliding) {
+        const jumpDir = this.wallSlideSide === 'left' ? 1 : -1;
+        this.vx = jumpDir * 7.5;
+        this.vy = isReversed ? -JUMP_POWER : JUMP_POWER;
+        this.facing = jumpDir > 0 ? 'right' : 'left';
+        this.jumpCount = 1;
+        this.isGrounded = false;
+        this.isWallSliding = false;
+        vfx.spawnJumpDust(this.x + (this.width / 2), this.y + (isReversed ? 0 : this.height));
+        if (typeof audioManager !== 'undefined') audioManager.playSfx('wallJump');
+      } else if (this.isGrounded) {
+        this.vy = isReversed ? -JUMP_POWER : JUMP_POWER; // JUMP_POWER is negative (-13.5)
         this.isGrounded = false;
         this.jumpCount = 1;
         this.state = 'jumping';
-        vfx.spawnJumpDust(this.x + (this.width / 2), this.y + this.height);
+        vfx.spawnJumpDust(this.x + (this.width / 2), this.y + (isReversed ? 0 : this.height));
         if (typeof audioManager !== 'undefined') audioManager.playSfx('jump');
-      } else if (this.jumpCount < this.maxJumps) {
-        this.vy = DOUBLE_JUMP;
+      } else if (this.jumpCount < this.maxJumps && !isZeroG) {
+        this.vy = isReversed ? -DOUBLE_JUMP : DOUBLE_JUMP;
         this.jumpCount++;
         this.state = 'jumping';
         vfx.spawnExplosion(this.x + (this.width / 2), this.y + (this.height / 2), 12, '#00ffcc', 3, true);
@@ -881,14 +1064,16 @@ class Player {
       }
     }
 
-    // 3. Apply Gravity
-    this.vy += GRAVITY;
-    if (this.vy > MAX_FALL) this.vy = MAX_FALL;
+    // 5. Apply Gravity
+    if (!isZeroG) {
+      this.vy += GRAVITY * currentScale;
+      if (Math.abs(this.vy) > MAX_FALL) this.vy = Math.sign(this.vy) * MAX_FALL;
+    }
 
-    // 4. AABB Collision Detection & Resolution (X-Axis)
+    // 6. AABB Collision Detection & Resolution (X-Axis)
     this.x += this.vx;
     for (const plat of platforms) {
-      if (plat.type === 'floating') continue; // Floating platforms don't block horizontally
+      if (plat.type === 'floating') continue;
       if (this.checkAABB(plat)) {
         if (plat.type === 'hazard') {
           this.triggerDeath("CRITICAL ERROR // OPERATOR TOUCHED HAZARD TERRAIN");
@@ -904,7 +1089,7 @@ class Player {
       }
     }
 
-    // 5. AABB Collision Detection & Resolution (Y-Axis)
+    // 7. AABB Collision Detection & Resolution (Y-Axis)
     this.isGrounded = false;
     this.y += this.vy;
     for (const plat of platforms) {
@@ -913,51 +1098,65 @@ class Player {
           this.triggerDeath("CRITICAL ERROR // OPERATOR FALLEN INTO HAZARD SPIKES");
           return;
         }
-        if (this.vy > 0) {
-          // Falling downward
-          if (plat.type === 'floating') {
-            // Only land on floating platform if bottom edge was previously above its top edge
-            if (this.oldY + this.height <= plat.y + 12) {
+
+        if (currentScale >= -0.1) {
+          // Normal Gravity Collision: Landing on top of platform when vy > 0
+          if (this.vy > 0) {
+            if (plat.type === 'floating') {
+              if (this.oldY + this.height <= plat.y + 12) {
+                this.y = plat.y - this.height;
+                this.vy = 0;
+                this.isGrounded = true;
+                this.jumpCount = 0;
+              }
+            } else {
               this.y = plat.y - this.height;
               this.vy = 0;
               this.isGrounded = true;
               this.jumpCount = 0;
             }
-          } else {
-            // Solid platform
+          } else if (this.vy < 0 && plat.type !== 'floating') {
+            this.y = plat.y + plat.height;
+            this.vy = 0;
+          }
+        } else {
+          // Inverted Gravity Collision: Landing on bottom of solid platform when vy < 0
+          if (this.vy < 0 && plat.type !== 'floating') {
+            if (this.oldY >= plat.y + plat.height - 12) {
+              this.y = plat.y + plat.height;
+              this.vy = 0;
+              this.isGrounded = true;
+              this.jumpCount = 0;
+            }
+          } else if (this.vy > 0 && plat.type === 'solid') {
             this.y = plat.y - this.height;
             this.vy = 0;
-            this.isGrounded = true;
-            this.jumpCount = 0;
           }
-        } else if (this.vy < 0 && plat.type !== 'floating') {
-          // Jumping upward into solid ceiling
-          this.y = plat.y + plat.height;
-          this.vy = 0;
         }
       }
     }
 
-    // 6. Check Level Boundaries & Bottomless Pits
-    if (this.y > levelBounds.bottom + 100) {
-      this.triggerDeath("SIGNAL LOST // OPERATOR PLUMMETED INTO THE ABYSS");
+    // 8. Check Level Boundaries & Pit Falls
+    if (this.y > levelBounds.bottom + 100 || this.y < levelBounds.top - 300) {
+      this.triggerDeath("SIGNAL LOST // OPERATOR EXCEEDED BOUNDARY ABYSS");
       return;
     }
     if (this.x < levelBounds.left) this.x = levelBounds.left;
 
-    // 7. Update Animation State Machine
-    if (!this.isGrounded) {
-      this.state = this.vy < 0 ? 'jumping' : 'falling';
+    // 9. Update Animation State Machine
+    if (this.isWallSliding) {
+      this.state = 'wallslide';
+    } else if (!this.isGrounded) {
+      this.state = (currentScale >= 0 ? (this.vy < 0 ? 'jumping' : 'falling') : (this.vy > 0 ? 'jumping' : 'falling'));
     } else if (Math.abs(this.vx) > 0.3) {
       this.state = 'running';
       if (this.animTimer % 4 === 0) {
-        vfx.spawnTrail(this.x + (this.width / 2), this.y + this.height - 4, 3, '#00ffcc');
+        vfx.spawnTrail(this.x + (this.width / 2), isReversed ? this.y + 4 : this.y + this.height - 4, 3, '#00ffcc');
       }
     } else {
       this.state = 'idle';
     }
 
-    // Decrement invincibility timer after taking damage / respawn
     if (this.invincibilityTimer > 0) this.invincibilityTimer--;
   }
 
@@ -971,14 +1170,13 @@ class Player {
   }
 
   triggerDeath(reason) {
-    if (this.dead || this.invincibilityTimer > 0) return;
+    if (this.dead) return;
     this.dead = true;
     camera.triggerShake(14, 35);
     if (typeof audioManager !== 'undefined') audioManager.playSfx('boom');
     vfx.spawnExplosion(this.x + (this.width / 2), this.y + (this.height / 2), 40, '#ff0055', 6, true);
     vfx.spawnExplosion(this.x + (this.width / 2), this.y + (this.height / 2), 25, '#ffcc00', 4, true);
 
-    // Show temporary death message on status HUD
     hudStatus.textContent = "SIGNAL COMPROMISED // REBOOTING...";
     hudStatus.className = "hud-val neon-red";
 
@@ -992,18 +1190,24 @@ class Player {
   draw(context, camOffset) {
     if (this.dead) return;
 
-    // Flashing effect if invincible
     if (this.invincibilityTimer > 0 && Math.floor(this.invincibilityTimer / 4) % 2 === 0) {
       return;
     }
 
     const rx = Math.floor(this.x - camOffset.x);
     const ry = Math.floor(this.y - camOffset.y);
+    const isReversed = antigravitySystem.isReversed;
 
     context.save();
 
+    // If gravity is inverted, flip rendering upside down around center
+    if (isReversed) {
+      context.translate(rx + (this.width / 2), ry + (this.height / 2));
+      context.scale(1, -1);
+      context.translate(-(rx + (this.width / 2)), -(ry + (this.height / 2)));
+    }
+
     if (playerSprite.complete && playerSprite.naturalWidth > 0) {
-      // Slicing Player Sprite Sheet: 3 Rows (Idle: 6 frames, Running: 8 frames, Jumping: 8 frames)
       const cols = 8;
       const rows = 3;
       const sWidth = playerSprite.naturalWidth / cols;
@@ -1018,19 +1222,16 @@ class Player {
         row = 1;
         col = Math.floor(this.animTimer / 5) % 8;
       } else {
-        // jumping or falling
         row = 2;
         col = Math.floor(this.animTimer / 6) % 8;
       }
 
-      // If facing left, flip horizontally around sprite center
       if (this.facing === 'left') {
         context.translate(rx + this.width / 2, ry + this.height / 2);
         context.scale(-1, 1);
         context.translate(-(rx + this.width / 2), -(ry + this.height / 2));
       }
 
-      // Render slightly scaled for cinematic visual overlap
       const drawW = this.width * 1.6;
       const drawH = this.height * 1.35;
       const offsetX = (drawW - this.width) / 2;
@@ -1276,7 +1477,7 @@ class Enemy {
       if (isStomping) {
         // ENEMY DESTROYED!
         this.alive = false;
-        player.vy = -11.5; // Stomp bounce
+        player.vy = antigravitySystem.isReversed ? 11.5 : -11.5; // Stomp bounce
         player.jumpCount = 1; // Allow follow-up air jump
         game.score += 150;
         game.enemiesDefeated++;
@@ -1285,8 +1486,8 @@ class Enemy {
         vfx.spawnExplosion(this.x + (this.width / 2), this.y + (this.height / 2), 15, '#ffcc00', 3, true);
         if (typeof audioManager !== 'undefined') audioManager.playSfx('boom');
       } else {
-        // PLAYER TAKES DAMAGE / DIES!
-        player.triggerDeath("CRITICAL ERROR // OPERATOR DESTROYED BY SECURITY DRONE");
+        // PLAYER SHIELD DAMAGE
+        player.takeDamage(1, "CRITICAL ERROR // OPERATOR SHIELD BREACHED BY DRONE");
       }
     }
   }
@@ -1725,6 +1926,10 @@ const levelData = [
       new Platform(4150, 380, 220, 24, 'floating'),
       new Platform(4500, 640, 400, 80, 'solid', 'SECTOR 03 GATE')
     ],
+    gravityZones: [
+      new GravityZone(1250, 200, 1100, 450, -1.0, { x: 0, y: -1 }, '▲ HIGH-VOLTAGE INVERSION FIELD ▲'),
+      new GravityZone(3800, 200, 600, 400, 0.0, { x: 0, y: 0 }, '◆ ZERO-G CHASM FLOAT ◆')
+    ],
     enemies: [
       new Enemy(450, 590, 300, 750, 2.5, 'fast'),
       new Enemy(1000, 510, 950, 1120, 1.6, 'patrol'),
@@ -1795,6 +2000,9 @@ const levelData = [
       // Final Corrupted Kernel Floor
       new Platform(5950, 1340, 600, 60, 'solid', 'ABYSSAL KERNEL CORE [BAD ENDING]')
     ],
+    gravityZones: [
+      new GravityZone(3250, 250, 600, 500, 0.0, { x: 0, y: 0 }, '◆ ZERO-G BRANCHING JUNCTION ◆')
+    ],
     enemies: [
       // Approach Gauntlet
       new Enemy(500, 590, 400, 850, 2.5, 'fast'),
@@ -1849,6 +2057,7 @@ class LevelManager {
   constructor() {
     this.currentLevel = null;
     this.player = new Player(100, 500);
+    this.gravityZones = [];
   }
 
   loadLevel(index, mode = null) {
@@ -1862,31 +2071,30 @@ class LevelManager {
     this.currentLevel = data;
     if (typeof audioManager !== 'undefined') audioManager.playBgm(index);
 
-    // Reset Player
+    // Reset Player & Antigravity System
+    antigravitySystem.resetToDefault('levelLoad');
     this.player.reset(data.playerStart.x, data.playerStart.y);
 
     // Reset Camera
     camera.x = data.playerStart.x - (VIEW_WIDTH / 2);
     camera.y = data.playerStart.y - (VIEW_HEIGHT / 2);
 
-    // Reset & Clone Entities (so restarts don't mutate original data)
+    // Reset & Clone Entities
     this.platforms = data.platforms.map(p => new Platform(p.x, p.y, p.width, p.height, p.type, p.label));
     this.enemies   = data.enemies.map(e => new Enemy(e.x, e.y, e.patrolMinX, e.patrolMaxX, e.speed, e.type));
     this.collectibles = data.collectibles.map(c => new Collectible(c.x, c.y));
     this.gateways  = data.gateways.map(g => new Gateway(g.x, g.y, g.width, g.height, g.type, g.targetLevel, g.label));
+    this.gravityZones = (data.gravityZones || []).map(z => new GravityZone(z.x, z.y, z.width, z.height, z.targetScale, z.targetVector, z.label));
 
-    // ─── DYNAMIC MAP & CONSEQUENCE ENGINE (DETROIT EFFECT) ───
+    // Dynamic Map & Consequence Engine (Detroit Effect)
     if (index === 1 && mode === 'stealth') {
-      // Option A Selected: Stealth Path (Remove heavy assault drones, add stealth cover bridges)
       this.enemies = this.enemies.filter(e => e.type !== 'heavy');
       this.platforms.push(new Platform(3000, 300, 400, 20, 'floating', '// STEALTH BRIDGE // SUPERCOMPUTER MESH'));
     } else if (index === 1 && (mode === 'assault' || mode === 'wasteland')) {
-      // Option B Selected: Wasteland Assault Path (Spawn extra heavy security wardens and hazard lasers)
       this.enemies.push(new Enemy(2000, 400, 1800, 2400, 4.0, 'heavy'));
       this.enemies.push(new Enemy(4500, 200, 4200, 4800, 3.5, 'heavy'));
     }
 
-    // Update Level Stats
     game.totalPacketsInLevel = (index === 2 ? 9 : this.collectibles.length);
     game.levelStartTime = performance.now();
     game.state = 'PLAYING';
@@ -1907,15 +2115,20 @@ class LevelManager {
   update() {
     if (game.state !== 'PLAYING') return;
 
-    // Update Time Elapsed
     game.timeElapsed = Math.floor((performance.now() - game.levelStartTime) / 1000);
-    updateHudDisplay();
 
-    // Check Manual Emergency Reboot [R Key]
     if (input.justPressed.reset) {
       this.restartCurrentLevel();
       input.clearJustPressed();
       return;
+    }
+
+    // Update Antigravity Lerp Timestep
+    antigravitySystem.update();
+
+    // Update Environmental Gravity Zones
+    for (const zone of this.gravityZones) {
+      zone.update(this.player, antigravitySystem);
     }
 
     // Update Player Physics & Collisions
@@ -1945,39 +2158,45 @@ class LevelManager {
     // Update Particle VFX
     vfx.update();
 
+    updateHudDisplay();
     input.clearJustPressed();
   }
 
   draw() {
     const camOffset = camera.getRenderOffset();
 
-    // 1. Draw Parallax Background (with Level index for dynamic background swap)
+    // 1. Draw Parallax Background
     backgroundRenderer.draw(ctx, camOffset, game.currentLevelIndex);
 
-    // 2. Draw Terrain / Platforms
+    // 2. Draw Environmental Gravity Zones
+    for (const zone of this.gravityZones) {
+      zone.draw(ctx, camOffset);
+    }
+
+    // 3. Draw Terrain / Platforms
     for (const plat of this.platforms) {
       plat.draw(ctx, camOffset);
     }
 
-    // 3. Draw Gateways / Portals
+    // 4. Draw Gateways / Portals
     for (const gate of this.gateways) {
       gate.draw(ctx, camOffset);
     }
 
-    // 4. Draw Collectible Packets
+    // 5. Draw Collectible Packets
     for (const item of this.collectibles) {
       item.draw(ctx, camOffset);
     }
 
-    // 5. Draw Patrol Enemies
+    // 6. Draw Patrol Enemies
     for (const enemy of this.enemies) {
       enemy.draw(ctx, camOffset);
     }
 
-    // 6. Draw Player
+    // 7. Draw Player
     this.player.draw(ctx, camOffset);
 
-    // 7. Draw Particle Effects
+    // 8. Draw Particle Effects
     vfx.draw(ctx, camOffset);
   }
 
@@ -2022,10 +2241,43 @@ const levelManager = new LevelManager();
 function updateHudDisplay() {
   if (!levelManager.currentLevel) return;
   hudLevelTitle.textContent = levelManager.currentLevel.title;
-  
+
+  const player = levelManager.player;
+  if (hudShields && player) {
+    const s = Math.max(0, player.shields);
+    const m = player.maxShields;
+    const bars = '█'.repeat(s) + '░'.repeat(m - s);
+    hudShields.textContent = `${bars} ${s}/${m}`;
+    hudShields.className = s === 3 ? "hud-val neon-green" : (s === 2 ? "hud-val neon-yellow" : "hud-val neon-red low-shield-flash");
+  }
+
   const collectedCount = levelManager.collectibles.filter(c => c.collected).length;
   const totalCount     = game.totalPacketsInLevel || levelManager.collectibles.length;
   hudScore.textContent   = `${String(collectedCount).padStart(2, '0')} / ${String(totalCount).padStart(2, '0')}`;
+
+  if (hudDash && player) {
+    if (player.dashCooldown <= 0) {
+      hudDash.textContent = "READY";
+      hudDash.className = "hud-val neon-cyan";
+    } else {
+      const remainingSec = (player.dashCooldown / 60).toFixed(1);
+      hudDash.textContent = `${remainingSec}s`;
+      hudDash.className = "hud-val neon-yellow";
+    }
+  }
+
+  if (hudGravity) {
+    if (antigravitySystem.isZeroG) {
+      hudGravity.textContent = "ZERO-G";
+      hudGravity.className = "hud-val neon-yellow";
+    } else if (antigravitySystem.isReversed) {
+      hudGravity.textContent = "-1.0G (CEILING)";
+      hudGravity.className = "hud-val neon-purple";
+    } else {
+      hudGravity.textContent = "1.0G (NORMAL)";
+      hudGravity.className = "hud-val neon-cyan";
+    }
+  }
   
   hudStatus.textContent  = `ONLINE // PTS: ${game.score}`;
   hudStatus.className    = "hud-val neon-yellow";

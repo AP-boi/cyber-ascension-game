@@ -131,6 +131,16 @@ body, html {
 .neon-green { color: var(--neon-green); }
 .neon-yellow { color: var(--neon-yellow); }
 .neon-red { color: var(--neon-red); }
+.neon-purple { color: #b400ff; text-shadow: 0 0 10px #b400ff; }
+
+.low-shield-flash {
+  animation: shieldPulse 0.5s infinite alternate;
+}
+
+@keyframes shieldPulse {
+  0% { color: #ff0055; text-shadow: 0 0 15px #ff0055; }
+  100% { color: #ffcc00; text-shadow: 0 0 5px #ffcc00; }
+}
 
 /* ─── CONTROLS HINT PANEL ──────────────────────────────────── */
 #controls-hint {

@@ -26,8 +26,20 @@
         <span id="hud-level-title" class="hud-val neon-cyan">LEVEL 1: NEON OUTSKIRTS</span>
       </div>
       <div class="hud-group">
+        <span class="hud-label">SHIELDS:</span>
+        <span id="hud-shields" class="hud-val neon-green">███ 3/3</span>
+      </div>
+      <div class="hud-group">
         <span class="hud-label">DATA PACKETS:</span>
         <span id="hud-score" class="hud-val neon-green">00 / 05</span>
+      </div>
+      <div class="hud-group">
+        <span class="hud-label">DASH:</span>
+        <span id="hud-dash" class="hud-val neon-cyan">READY</span>
+      </div>
+      <div class="hud-group">
+        <span class="hud-label">GRAVITY:</span>
+        <span id="hud-gravity" class="hud-val neon-cyan">1.0G</span>
       </div>
       <div class="hud-group">
         <span class="hud-label">STATUS:</span>
@@ -42,10 +54,12 @@
     <!-- Controls Hint Panel -->
     <div id="controls-hint">
       <div class="hint-title">// OPERATOR CONTROLS //</div>
-      <div class="hint-row"><span>[A/D] or [←/→]</span> MOVE OPERATOR</div>
-      <div class="hint-row"><span>[W], [UP] or [SPACE]</span> JUMP / DOUBLE JUMP</div>
-      <div class="hint-row"><span>[R]</span> EMERGENCY REBOOT (RESET LEVEL)</div>
-      <div class="hint-row"><span>[M]</span> TOGGLE AUDIO MUTE / UNMUTE</div>
+      <div class="hint-row"><span>[A/D] / [←/→]</span> MOVE OPERATOR</div>
+      <div class="hint-row"><span>[W] / [UP] / [SPACE]</span> JUMP / DOUBLE JUMP / WALL JUMP</div>
+      <div class="hint-row"><span>[SHIFT] / [E]</span> CYBER DASH THRUSTER</div>
+      <div class="hint-row"><span>[G]</span> TOGGLE ANTIGRAVITY IMPLANT</div>
+      <div class="hint-row"><span>[R]</span> EMERGENCY REBOOT LEVEL</div>
+      <div class="hint-row"><span>[M]</span> TOGGLE AUDIO MUTE</div>
     </div>
 
     <!-- Audio Initialization / Start Screen Overlay (Required by Browser Autoplay Policies) -->
@@ -115,7 +129,7 @@
     </div>
   </div>
 
-  <!-- Game Engine Code -->
-  <script src="main.js"></script>
+  <!-- Game Engine Code (ES6 Module) -->
+  <script type="module" src="main.js"></script>
 </body>
 </html>
